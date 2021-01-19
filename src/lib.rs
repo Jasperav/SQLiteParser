@@ -3,6 +3,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, ToSql, NO_PARAMS};
 
+/// The method to call to start parsing the SQLite file
 pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: Parse) {
     let (query, params) = parser.query_all_tables();
     let connection = Connection::open(&path).unwrap();
@@ -18,6 +19,7 @@ pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: Parse) {
     )
 }
 
+/// Implement this trait to parse your own types
 pub trait Parser {
     fn query_all_tables(&self) -> (&'static str, &'static [&'static dyn ToSql]) {
         (
@@ -29,31 +31,48 @@ pub trait Parser {
     fn process_tables(&self, tables: HashMap<String, Table>);
 }
 
+/// Represents a table in SQLite
 #[derive(Debug, PartialEq)]
 pub struct Table {
+    /// The table name
     pub table_name: String,
+    /// The columns of the table
     pub columns: Vec<Column>,
-    /// [id, ForeignKey]
-    pub foreign_keys: HashMap<i32, Vec<ForeignKey>>,
+    /// The foreign keys of the table
+    pub foreign_keys: Vec<ForeignKey>,
 }
 
+/// Represents a column in SQLite
 #[derive(Debug, PartialEq)]
 pub struct Column {
+    /// The id of the column (starts with 0 and is incremented for each column)
     pub id: i32,
+    /// The name of the column
     pub name: String,
+    /// The type of the column
     pub the_type: Type,
+    /// Checks if the column is nullable
     pub nullable: bool,
+    /// Checks if the column is part of the primary key
     pub part_of_pk: bool,
 }
 
+/// Represents a foreign key in SQLite
 #[derive(Debug, PartialEq)]
 pub struct ForeignKey {
+    /// The id of the foreign key
+    /// Starts with 0 and is incremented for each unique foreign key
+    /// This means compound foreign key shares the same id
     pub id: i32,
+    /// The table it refers to
     pub table: String,
-    pub from_column: String,
-    pub to_column: String,
+    /// The columns it refers from (own table)
+    pub from_column: Vec<String>,
+    /// The columns it refers to (referring to table)
+    pub to_column: Vec<String>,
 }
 
+/// Represents a type in SQLite
 #[derive(Debug, PartialEq)]
 pub enum Type {
     Text,
@@ -81,6 +100,7 @@ impl From<String> for Type {
     }
 }
 
+/// Queries the tables from the SQLite file
 fn query_tables(query: &str, params: &[&dyn ToSql], connection: &Connection) -> Vec<Table> {
     let mut tables = vec![];
     let mut stmt = connection.prepare(query).unwrap();
@@ -105,29 +125,7 @@ fn query_tables(query: &str, params: &[&dyn ToSql], connection: &Connection) -> 
     tables
 }
 
-fn query_fk(connection: &Connection, table_name: &str) -> HashMap<i32, Vec<ForeignKey>> {
-    let mut foreign_keys = HashMap::new();
-    let mut stmt = connection
-        .prepare("SELECT * FROM pragma_foreign_key_list(?);")
-        .unwrap();
-    let mut rows = stmt.query(&[&table_name]).unwrap();
-
-    while let Some(row) = rows.next().unwrap() {
-        let id = row.get(0).unwrap();
-
-        let entry = foreign_keys.entry(id).or_insert_with(Vec::new);
-
-        entry.push(ForeignKey {
-            id,
-            table: row.get(2).unwrap(),
-            from_column: row.get(3).unwrap(),
-            to_column: row.get(4).unwrap(),
-        })
-    }
-
-    foreign_keys
-}
-
+/// Queries the columns from the table name
 fn query_columns(connection: &Connection, table_name: &str) -> Vec<Column> {
     let mut columns = vec![];
     let mut stmt = connection
@@ -151,6 +149,33 @@ fn query_columns(connection: &Connection, table_name: &str) -> Vec<Column> {
     columns
 }
 
+/// Queries the foreign keys from the table name
+fn query_fk(connection: &Connection, table_name: &str) -> Vec<ForeignKey> {
+    let mut foreign_keys: Vec<ForeignKey> = vec![];
+    let mut stmt = connection
+        .prepare("SELECT * FROM pragma_foreign_key_list(?);")
+        .unwrap();
+    let mut rows = stmt.query(&[&table_name]).unwrap();
+
+    while let Some(row) = rows.next().unwrap() {
+        let mut foreign_key = ForeignKey {
+            id: row.get(0).unwrap(),
+            table: row.get(2).unwrap(),
+            from_column: vec![row.get(3).unwrap()],
+            to_column: vec![row.get(4).unwrap()],
+        };
+
+        if let Some(fk) = foreign_keys.iter_mut().find(|f| f.id == row.get(0).unwrap()) {
+            fk.from_column.push(foreign_key.from_column.remove(0));
+            fk.to_column.push(foreign_key.to_column.remove(0));
+        } else {
+            foreign_keys.push(foreign_key);
+        }
+    }
+
+    foreign_keys
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::hash_map::RandomState;
@@ -160,14 +185,6 @@ mod tests {
 
     use crate::Type::{Blob, Integer, Real, Text};
     use crate::{parse, Column, ForeignKey, Parser, Table, Type};
-
-    macro_rules! hashmap {
-    ($( $key: expr => $val: expr ),*) => {{
-         let mut map = ::std::collections::HashMap::new();
-         $( map.insert($key, $val); )*
-         map
-        }}
-    }
 
     #[test]
     fn test_parse() {
@@ -247,16 +264,14 @@ mod tests {
                             part_of_pk: false,
                         },
                     ],
-                    foreign_keys: {
-                        hashmap!(0 => vec![
-                            ForeignKey {
-                                id: 0,
-                                table: "user".to_string(),
-                                from_column: "user_id".to_string(),
-                                to_column: "user_id".to_string()
-                            }
-                        ])
-                    },
+                    foreign_keys: vec![
+                        ForeignKey {
+                            id: 0,
+                            table: "user".to_string(),
+                            from_column: vec!["user_id".to_string()],
+                            to_column: vec!["user_id".to_string()]
+                        }
+                    ]
                 };
                 let user = Table {
                     table_name: "user".to_string(),
@@ -267,7 +282,7 @@ mod tests {
                         nullable: true,
                         part_of_pk: true,
                     }],
-                    foreign_keys: HashMap::default(),
+                    foreign_keys: vec![],
                 };
                 let book = Table {
                     table_name: "book".to_string(),
@@ -308,28 +323,18 @@ mod tests {
                             part_of_pk: false,
                         },
                     ],
-                    foreign_keys: {
-                        hashmap!(0 => vec![
+                    foreign_keys: vec![
                             ForeignKey { id: 0,
                                 table: "user".to_string(),
-                                from_column: "user_id".to_string(),
-                                to_column: "user_id".to_string()
-                                }
-                            ],
-                        1 => vec![
+                                from_column: vec!["user_id".to_string()],
+                                to_column: vec!["user_id".to_string()]
+                                },
                             ForeignKey { id: 1,
                                 table: "contacts".to_string(),
-                                from_column: "contact_id".to_string(),
-                                to_column: "contact_id".to_string()
+                                from_column: vec!["contact_id".to_string(), "first_name".to_string()],
+                                to_column: vec!["contact_id".to_string(), "first_name".to_string()]
                             },
-                            ForeignKey { id: 1,
-                                table: "contacts".to_string(),
-                                from_column: "first_name".to_string(),
-                                to_column: "first_name".to_string()
-                                }
-                            ]
-                        )
-                    },
+                        ]
                 };
 
                 let map: HashMap<String, Table> = vec![contacts, user, book]
