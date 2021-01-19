@@ -105,7 +105,7 @@ fn query_tables(query: &str, params: &[&dyn ToSql], connection: &Connection) -> 
     tables
 }
 
-fn query_fk(connection: &Connection, table_name: &String) -> HashMap<i32, Vec<ForeignKey>> {
+fn query_fk(connection: &Connection, table_name: &str) -> HashMap<i32, Vec<ForeignKey>> {
     let mut foreign_keys = HashMap::new();
     let mut stmt = connection
         .prepare("SELECT * FROM pragma_foreign_key_list(?);")
@@ -115,7 +115,7 @@ fn query_fk(connection: &Connection, table_name: &String) -> HashMap<i32, Vec<Fo
     while let Some(row) = rows.next().unwrap() {
         let id = row.get(0).unwrap();
 
-        let entry = foreign_keys.entry(id).or_insert(vec![]);
+        let entry = foreign_keys.entry(id).or_insert_with(Vec::new);
 
         entry.push(ForeignKey {
             id,
@@ -128,7 +128,7 @@ fn query_fk(connection: &Connection, table_name: &String) -> HashMap<i32, Vec<Fo
     foreign_keys
 }
 
-fn query_columns(connection: &Connection, table_name: &String) -> Vec<Column> {
+fn query_columns(connection: &Connection, table_name: &str) -> Vec<Column> {
     let mut columns = vec![];
     let mut stmt = connection
         .prepare("SELECT * FROM pragma_table_info(?);")
