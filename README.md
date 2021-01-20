@@ -14,16 +14,17 @@ Than implement the `Parser` trait and call the `parse` function with the impleme
 `struct` and the location of the SQLite file.
 
 ## What will it parse?
-- Tables 
-    - Table_name
-    - [Columns]
-        - Id
-        - Name
+
+- Tables -> represents a table in SQLite 
+    - Table_name -> the table name
+    - [Columns] -> the columns of the table 
+        - Id -> the id of the column (starts with 0 and is incremented for each column)
+        - Name -> the name of the column
         - Type of the column (Text, Numeric, Blob, Real, Integer)
-        - Nullable
-        - Part of the primary key
-    - [Foreign keys]
-        - Id
-        - Table
-        - [From_column]
-        - [To_column]
+        - Nullable -> checks if the column is nullable
+        - Part of the primary key -> checks if this column is part of the primary key
+    - [Foreign keys] -> the foreign keys of the table
+        - Id -> the id of the foreign key
+        - Table -> the table it refers to
+        - [From_column] -> the columns it refers from (own table)
+        - [To_column] -> the columns it refers to (referring to table)
