@@ -14,7 +14,7 @@ pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: Parse) {
     parser.process_tables(
         tables
             .into_iter()
-            .map(|t| (t.table_name.clone().to_lowercase(), t))
+            .map(|t| (t.table_name.to_lowercase(), t))
             .collect(),
     );
 }
@@ -306,7 +306,7 @@ mod tests {
                 let user = Table {
                     table_name: "user".to_string(),
                     columns: vec![
-                        user_id_column.clone(),
+                        user_id_column,
                         Column {
                             id: 1,
                             name: "parent_id".to_string(),
