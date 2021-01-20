@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use rusqlite::{Connection, NO_PARAMS, ToSql};
+use rusqlite::{Connection, ToSql, NO_PARAMS};
 
 /// The method to call to start parsing the SQLite file
 pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: Parse) {
@@ -11,10 +11,12 @@ pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: Parse) {
     // Get the tables
     let tables = query_tables(query, params, &connection);
 
-    parser.process_tables(tables
-        .into_iter()
-        .map(|t| (t.table_name.clone().to_lowercase(), t))
-        .collect());
+    parser.process_tables(
+        tables
+            .into_iter()
+            .map(|t| (t.table_name.clone().to_lowercase(), t))
+            .collect(),
+    );
 }
 
 /// Implement this trait to parse your own types
@@ -166,11 +168,21 @@ fn query_fk(connection: &Connection, table_name: &str) -> Vec<ForeignKey> {
         let mut foreign_key = ForeignKey {
             id: row.get(0).unwrap(),
             table,
-            from_column: vec![own_columns.into_iter().find(|c| c.name == to_column).unwrap()],
-            to_column: vec![other_table_columns.clone().into_iter().find(|c| c.name == from_column).unwrap()],
+            from_column: vec![own_columns
+                .into_iter()
+                .find(|c| c.name == to_column)
+                .unwrap()],
+            to_column: vec![other_table_columns
+                .clone()
+                .into_iter()
+                .find(|c| c.name == from_column)
+                .unwrap()],
         };
 
-        if let Some(fk) = foreign_keys.iter_mut().find(|f| f.id == row.get(0).unwrap()) {
+        if let Some(fk) = foreign_keys
+            .iter_mut()
+            .find(|f| f.id == row.get(0).unwrap())
+        {
             fk.from_column.push(foreign_key.from_column.remove(0));
             fk.to_column.push(foreign_key.to_column.remove(0));
         } else {
@@ -187,8 +199,8 @@ mod tests {
 
     use rusqlite::{Connection, NO_PARAMS};
 
-    use crate::{Column, ForeignKey, parse, Parser, Table, Type};
     use crate::Type::{Blob, Integer, Real, Text};
+    use crate::{parse, Column, ForeignKey, Parser, Table, Type};
 
     #[test]
     fn test_parse() {
@@ -278,24 +290,18 @@ mod tests {
                             part_of_pk: false,
                         },
                     ],
-                    foreign_keys: vec![
-                        ForeignKey {
-                            id: 0,
-                            table: "user".to_string(),
-                            from_column: vec![
-                                Column {
-                                    id: 2,
-                                    name: "user_id".to_string(),
-                                    the_type: Integer,
-                                    nullable: true,
-                                    part_of_pk: false,
-                                }
-                            ],
-                            to_column: vec![
-                                user_id_column.clone()
-                            ],
-                        }
-                    ],
+                    foreign_keys: vec![ForeignKey {
+                        id: 0,
+                        table: "user".to_string(),
+                        from_column: vec![Column {
+                            id: 2,
+                            name: "user_id".to_string(),
+                            the_type: Integer,
+                            nullable: true,
+                            part_of_pk: false,
+                        }],
+                        to_column: vec![user_id_column.clone()],
+                    }],
                 };
                 let user = Table {
                     table_name: "user".to_string(),
@@ -307,31 +313,26 @@ mod tests {
                             the_type: Integer,
                             nullable: true,
                             part_of_pk: false,
-                        }
+                        },
                     ],
-                    foreign_keys: vec![
-                        ForeignKey {
+                    foreign_keys: vec![ForeignKey {
+                        id: 0,
+                        table: "user".to_string(),
+                        from_column: vec![Column {
                             id: 0,
-                            table: "user".to_string(),
-                            from_column: vec![
-                                Column {
-                                    id: 0,
-                                    name: "user_id".to_string(),
-                                    the_type: Integer,
-                                    nullable: false,
-                                    part_of_pk: true
-                                }
-                            ],
-                            to_column: vec![
-                                Column {
-                                    id: 1,
-                                    name: "parent_id".to_string(),
-                                    the_type: Integer,
-                                    nullable: true,
-                                    part_of_pk: false
-                                }
-                            ],
+                            name: "user_id".to_string(),
+                            the_type: Integer,
+                            nullable: false,
+                            part_of_pk: true,
                         }],
+                        to_column: vec![Column {
+                            id: 1,
+                            name: "parent_id".to_string(),
+                            the_type: Integer,
+                            nullable: true,
+                            part_of_pk: false,
+                        }],
+                    }],
                 };
 
                 let book = Table {
