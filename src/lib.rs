@@ -7,7 +7,7 @@ use std::collections::hash_map::RandomState;
 /// Convenience method to get the tables
 pub fn parse_no_parser<P: AsRef<Path>>(path: P) -> HashMap<String, Table> {
     struct Parse {
-        tables: Option<HashMap<String, Table>>
+        tables: Option<HashMap<String, Table>>,
     }
 
     impl Parser for Parse {
@@ -16,9 +16,7 @@ pub fn parse_no_parser<P: AsRef<Path>>(path: P) -> HashMap<String, Table> {
         }
     }
 
-    let mut p = Parse {
-        tables: None
-    };
+    let mut p = Parse { tables: None };
 
     parse(path, &mut p);
 
