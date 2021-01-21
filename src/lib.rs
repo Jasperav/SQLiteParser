@@ -2,9 +2,31 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use rusqlite::{Connection, ToSql, NO_PARAMS};
+use std::collections::hash_map::RandomState;
+
+/// Convenience method to get the tables
+pub fn parse_no_parser<P: AsRef<Path>>(path: P) -> HashMap<String, Table> {
+    struct Parse {
+        tables: Option<HashMap<String, Table>>
+    }
+
+    impl Parser for Parse {
+        fn process_tables(&mut self, tables: HashMap<String, Table, RandomState>) {
+            self.tables = Some(tables)
+        }
+    }
+
+    let mut p = Parse {
+        tables: None
+    };
+
+    parse(path, &mut p);
+
+    p.tables.unwrap()
+}
 
 /// The method to call to start parsing the SQLite file
-pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: Parse) {
+pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: &mut Parse) {
     let (query, params) = parser.query_all_tables();
     let connection = Connection::open(&path).unwrap();
 
@@ -28,7 +50,7 @@ pub trait Parser {
         )
     }
 
-    fn process_tables(&self, tables: HashMap<String, Table>);
+    fn process_tables(&mut self, tables: HashMap<String, Table>);
 }
 
 /// Represents a table in SQLite
@@ -256,7 +278,7 @@ mod tests {
         struct Parse;
 
         impl Parser for Parse {
-            fn process_tables(&self, tables: HashMap<String, Table>) {
+            fn process_tables(&mut self, tables: HashMap<String, Table>) {
                 let user_id_column = Column {
                     id: 0,
                     name: "user_id".to_string(),
@@ -444,7 +466,7 @@ mod tests {
             }
         }
 
-        parse(&current, Parse {});
+        parse(&current, &mut Parse {});
 
         // Done testing, remove the file
         drop(connect);
