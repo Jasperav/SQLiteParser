@@ -4,7 +4,70 @@ use std::path::Path;
 use rusqlite::{Connection, ToSql, NO_PARAMS};
 use std::collections::hash_map::RandomState;
 
+/// The method to call to start parsing the SQLite file
+/// Example:
+///
+/// ```
+/// use sqlite_parser::{parse, Parser, Table};
+/// use std::fs::File;
+/// use std::collections::hash_map::RandomState;
+/// use std::collections::HashMap;
+///
+/// /// This is the location to the SQLite file
+/// let my_sqlite_file_location = std::env::current_dir().unwrap().join("test_sqlite.sqlite3");
+/// /// For the doc test, create the actual SQLite file
+/// let sqlite_file = File::create(&my_sqlite_file_location).unwrap();
+///
+/// /// Create a parse struct to process the tables
+/// /// Note: there is a convenience method `parse_no_parser` that doesn't require a parser.
+/// struct Parse;
+///
+/// impl Parser for Parse {
+///     fn process_tables(&mut self, tables: HashMap<String, Table, RandomState>) {
+///         // Do something with the tables
+///     }
+/// }
+///
+/// /// Start the parsing
+/// parse(&my_sqlite_file_location, &mut Parse { });
+///
+/// /// Remove the SQLite file for the doc test
+/// std::fs::remove_file(&my_sqlite_file_location).unwrap();
+/// ```
+pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: &mut Parse) {
+    let (query, params) = parser.query_all_tables();
+    let connection = Connection::open(&path).unwrap();
+
+    // Get the tables
+    let tables = query_tables(query, params, &connection);
+
+    parser.process_tables(
+        tables
+            .into_iter()
+            .map(|t| (t.table_name.to_lowercase(), t))
+            .collect(),
+    );
+}
+
 /// Convenience method to get the tables
+/// Example:
+///
+/// ```
+/// use sqlite_parser::parse_no_parser;
+/// use std::fs::File;
+///
+/// /// This is the location to the SQLite file
+/// let my_sqlite_file_location = std::env::current_dir().unwrap().join("test_sqlite.sqlite3");
+/// /// For the doc test, create the actual SQLite file
+/// let sqlite_file = File::create(&my_sqlite_file_location).unwrap();
+///
+/// /// Start the parsing
+/// let _tables = parse_no_parser(&my_sqlite_file_location);
+/// /// Do stuff with the tables property!
+///
+/// /// Remove the SQLite file for the doc test
+/// std::fs::remove_file(&my_sqlite_file_location).unwrap();
+/// ```
 pub fn parse_no_parser<P: AsRef<Path>>(path: P) -> HashMap<String, Table> {
     struct Parse {
         tables: Option<HashMap<String, Table>>,
@@ -21,22 +84,6 @@ pub fn parse_no_parser<P: AsRef<Path>>(path: P) -> HashMap<String, Table> {
     parse(path, &mut p);
 
     p.tables.unwrap()
-}
-
-/// The method to call to start parsing the SQLite file
-pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: &mut Parse) {
-    let (query, params) = parser.query_all_tables();
-    let connection = Connection::open(&path).unwrap();
-
-    // Get the tables
-    let tables = query_tables(query, params, &connection);
-
-    parser.process_tables(
-        tables
-            .into_iter()
-            .map(|t| (t.table_name.to_lowercase(), t))
-            .collect(),
-    );
 }
 
 /// Implement this trait to parse your own types
