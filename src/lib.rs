@@ -10,7 +10,7 @@ pub struct Metadata {
 
 impl Metadata {
     pub fn table(&self, table_name: &str) -> Option<&Table> {
-        self.tables.get(table_name)
+        self.tables.get(&table_name.to_lowercase())
     }
 }
 
@@ -119,7 +119,7 @@ pub struct Table {
 
 impl Table {
     pub fn column(&self, column_name: &str) -> Option<&Column> {
-        self.columns.iter().find(|c| c.name == column_name)
+        self.columns.iter().find(|c| &c.name == &column_name.to_lowercase())
     }
 }
 
