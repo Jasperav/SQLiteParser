@@ -3,7 +3,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, ToSql, NO_PARAMS};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Metadata {
     pub tables: HashMap<String, Table>,
 }
@@ -107,7 +107,7 @@ pub trait Parser {
 }
 
 /// Represents a table in SQLite
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Table {
     /// The table name
     pub table_name: String,
@@ -139,7 +139,7 @@ pub struct Column {
 }
 
 /// Represents a foreign key in SQLite
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ForeignKey {
     /// The id of the foreign key
     /// Starts with 0 and is incremented for each unique foreign key
