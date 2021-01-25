@@ -1,17 +1,25 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use rusqlite::{Connection, ToSql, NO_PARAMS};
-use std::collections::hash_map::RandomState;
+use rusqlite::{Connection, NO_PARAMS, ToSql};
+
+#[derive(Debug)]
+pub struct Metadata {
+    pub tables: HashMap<String, Table>
+}
+
+impl Metadata {
+    pub fn table(&self, table_name: &str) -> Option<&Table> {
+        self.tables.get(table_name)
+    }
+}
 
 /// The method to call to start parsing the SQLite file
 /// Example:
 ///
 /// ```
-/// use sqlite_parser::{parse, Parser, Table};
+/// use sqlite_parser::{parse, Parser, Table, Metadata};
 /// use std::fs::File;
-/// use std::collections::hash_map::RandomState;
-/// use std::collections::HashMap;
 ///
 /// /// This is the location to the SQLite file
 /// let my_sqlite_file_location = std::env::current_dir().unwrap().join("test_sqlite.sqlite3");
@@ -23,7 +31,7 @@ use std::collections::hash_map::RandomState;
 /// struct Parse;
 ///
 /// impl Parser for Parse {
-///     fn process_tables(&mut self, tables: HashMap<String, Table, RandomState>) {
+///     fn process_tables(&mut self, meta_data: Metadata) {
 ///         // Do something with the tables
 ///     }
 /// }
@@ -42,10 +50,12 @@ pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: &mut Parse) {
     let tables = query_tables(query, params, &connection);
 
     parser.process_tables(
-        tables
-            .into_iter()
-            .map(|t| (t.table_name.to_lowercase(), t))
-            .collect(),
+        Metadata {
+            tables: tables
+                .into_iter()
+                .map(|t| (t.table_name.to_lowercase(), t))
+                .collect()
+        }
     );
 }
 
@@ -68,13 +78,13 @@ pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: &mut Parse) {
 /// /// Remove the SQLite file for the doc test
 /// std::fs::remove_file(&my_sqlite_file_location).unwrap();
 /// ```
-pub fn parse_no_parser<P: AsRef<Path>>(path: P) -> HashMap<String, Table> {
+pub fn parse_no_parser<P: AsRef<Path>>(path: P) -> Metadata {
     struct Parse {
-        tables: Option<HashMap<String, Table>>,
+        tables: Option<Metadata>,
     }
 
     impl Parser for Parse {
-        fn process_tables(&mut self, tables: HashMap<String, Table, RandomState>) {
+        fn process_tables(&mut self, tables: Metadata) {
             self.tables = Some(tables)
         }
     }
@@ -95,7 +105,7 @@ pub trait Parser {
         )
     }
 
-    fn process_tables(&mut self, tables: HashMap<String, Table>);
+    fn process_tables(&mut self, tables: Metadata);
 }
 
 /// Represents a table in SQLite
@@ -107,6 +117,15 @@ pub struct Table {
     pub columns: Vec<Column>,
     /// The foreign keys of the table
     pub foreign_keys: Vec<ForeignKey>,
+}
+
+impl Table {
+    pub fn column(&self, column_name: &str) -> Option<&Column> {
+        self
+            .columns
+            .iter()
+            .find(|c| c.name == column_name)
+    }
 }
 
 /// Represents a column in SQLite
@@ -204,10 +223,11 @@ fn query_columns(connection: &Connection, table_name: &str) -> Vec<Column> {
         // Parse the type first
         let t: String = row.get(2).unwrap();
         let is_non_null: bool = row.get(3).unwrap();
+        let name: String = row.get(1).unwrap();
 
         columns.push(Column {
             id: row.get(0).unwrap(),
-            name: row.get(1).unwrap(),
+            name: name.to_lowercase(),
             the_type: Type::from(t),
             nullable: !is_non_null,
             part_of_pk: row.get(5).unwrap(),
@@ -266,8 +286,8 @@ mod tests {
 
     use rusqlite::{Connection, NO_PARAMS};
 
+    use crate::{Column, ForeignKey, Metadata, parse, Parser, Table, Type};
     use crate::Type::{Blob, Integer, Real, Text};
-    use crate::{parse, Column, ForeignKey, Parser, Table, Type};
 
     #[test]
     fn test_parse() {
@@ -323,7 +343,7 @@ mod tests {
         struct Parse;
 
         impl Parser for Parse {
-            fn process_tables(&mut self, tables: HashMap<String, Table>) {
+            fn process_tables(&mut self, tables: Metadata) {
                 let user_id_column = Column {
                     id: 0,
                     name: "user_id".to_string(),
@@ -504,10 +524,10 @@ mod tests {
                     .map(|v| (v.table_name.clone(), v))
                     .collect();
 
-                assert_eq!(map.get("user"), tables.get("user"));
-                assert_eq!(map.get("book"), tables.get("book"));
-                assert_eq!(map.get("contacts"), tables.get("contacts"));
-                assert_eq!(map, tables);
+                assert_eq!(map.get("user"), tables.table("user"));
+                assert_eq!(map.get("book"), tables.table("book"));
+                assert_eq!(map.get("contacts"), tables.table("contacts"));
+                assert_eq!(map, tables.tables);
             }
         }
 
