@@ -18,19 +18,14 @@ called `parse_no_parser`.
 There are 2 ways of using this library
 - Implement the `Parser` trait and call the `parse` function.
 ```
-use sqlite_parser::{parse, Parser, Table};
-use std::fs::File;
-use std::collections::hash_map::RandomState;
-use std::collections::HashMap;
-
-/// This is the location to the SQLite file
-let my_sqlite_file_location = std::env::current_dir().unwrap().join("test_sqlite.sqlite3");
+use sqlite_parser::{parse, Parser, Table, Metadata};
 
 /// Create a parse struct to process the tables
 /// Note: there is a convenience method `parse_no_parser` that doesn't require a parser.
+
 struct Parse;
 impl Parser for Parse {
-    fn process_tables(&mut self, tables: HashMap<String, Table, RandomState>) {
+    fn process_tables(&mut self, meta_data: Metadata) {
         // Do something with the tables
     }
 }
@@ -42,12 +37,9 @@ parse(&my_sqlite_file_location, &mut Parse { });
 - Don't implement the `Parser` trait and call the `parse_no_parser` function.
 ```
 use sqlite_parser::parse_no_parser;
-use std::fs::File;
-/// This is the location to the SQLite file
-let my_sqlite_file_location = std::env::current_dir().unwrap().join("test_sqlite.sqlite3");
 
 /// Start the parsing
-let tables = parse_no_parser(&my_sqlite_file_location);
+let _tables = parse_no_parser(&my_sqlite_file_location);
 /// Do stuff with the tables property!
 ```
 ## What will it parse?

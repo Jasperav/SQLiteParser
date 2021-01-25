@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use rusqlite::{Connection, NO_PARAMS, ToSql};
+use rusqlite::{Connection, ToSql, NO_PARAMS};
 
 #[derive(Debug)]
 pub struct Metadata {
-    pub tables: HashMap<String, Table>
+    pub tables: HashMap<String, Table>,
 }
 
 impl Metadata {
@@ -49,14 +49,12 @@ pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: &mut Parse) {
     // Get the tables
     let tables = query_tables(query, params, &connection);
 
-    parser.process_tables(
-        Metadata {
-            tables: tables
-                .into_iter()
-                .map(|t| (t.table_name.to_lowercase(), t))
-                .collect()
-        }
-    );
+    parser.process_tables(Metadata {
+        tables: tables
+            .into_iter()
+            .map(|t| (t.table_name.to_lowercase(), t))
+            .collect(),
+    });
 }
 
 /// Convenience method to get the tables
@@ -121,10 +119,7 @@ pub struct Table {
 
 impl Table {
     pub fn column(&self, column_name: &str) -> Option<&Column> {
-        self
-            .columns
-            .iter()
-            .find(|c| c.name == column_name)
+        self.columns.iter().find(|c| c.name == column_name)
     }
 }
 
@@ -286,8 +281,8 @@ mod tests {
 
     use rusqlite::{Connection, NO_PARAMS};
 
-    use crate::{Column, ForeignKey, Metadata, parse, Parser, Table, Type};
     use crate::Type::{Blob, Integer, Real, Text};
+    use crate::{parse, Column, ForeignKey, Metadata, Parser, Table, Type};
 
     #[test]
     fn test_parse() {
