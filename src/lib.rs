@@ -119,7 +119,9 @@ pub struct Table {
 
 impl Table {
     pub fn column(&self, column_name: &str) -> Option<&Column> {
-        self.columns.iter().find(|c| &c.name == &column_name.to_lowercase())
+        self.columns
+            .iter()
+            .find(|c| c.name == column_name.to_lowercase())
     }
 }
 
@@ -165,15 +167,15 @@ pub enum Type {
 
 impl From<String> for Type {
     fn from(s: String) -> Self {
-        if s == "TEXT" {
+        if &s == "TEXT" {
             Type::Text
-        } else if s == "INTEGER" {
+        } else if &s == "INTEGER" {
             Type::Integer
-        } else if s == "STRING" {
+        } else if &s == "STRING" {
             Type::String
-        } else if s == "REAL" {
+        } else if &s == "REAL" {
             Type::Real
-        } else if s == "BLOB" {
+        } else if &s == "BLOB" {
             Type::Blob
         } else {
             panic!("Unknown type: {}", s)
@@ -252,12 +254,12 @@ fn query_fk(connection: &Connection, table_name: &str) -> Vec<ForeignKey> {
             table,
             from_column: vec![own_columns
                 .into_iter()
-                .find(|c| c.name == to_column)
+                .find(|c| c.name == to_column.to_lowercase())
                 .unwrap()],
             to_column: vec![other_table_columns
                 .clone()
                 .into_iter()
-                .find(|c| c.name == from_column)
+                .find(|c| c.name == from_column.to_lowercase())
                 .unwrap()],
         };
 
