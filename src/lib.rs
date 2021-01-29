@@ -10,7 +10,10 @@ pub struct Metadata {
 
 impl Metadata {
     pub fn table(&self, table_name: &str) -> Option<&Table> {
-        self.tables.get(&table_name.to_lowercase())
+        self.tables
+            .iter()
+            .map(|(_, table)| table)
+            .find(|table| table.table_name == table_name)
     }
 }
 
@@ -52,7 +55,7 @@ pub fn parse<P: AsRef<Path>, Parse: Parser>(path: P, parser: &mut Parse) {
     parser.process_tables(Metadata {
         tables: tables
             .into_iter()
-            .map(|t| (t.table_name.to_lowercase(), t))
+            .map(|t| (t.table_name.clone(), t))
             .collect(),
     });
 }
@@ -121,7 +124,7 @@ impl Table {
     pub fn column(&self, column_name: &str) -> Option<&Column> {
         self.columns
             .iter()
-            .find(|c| c.name == column_name.to_lowercase())
+            .find(|c| c.name.to_lowercase() == column_name.to_lowercase())
     }
 }
 
@@ -224,7 +227,7 @@ fn query_columns(connection: &Connection, table_name: &str) -> Vec<Column> {
 
         columns.push(Column {
             id: row.get(0).unwrap(),
-            name: name.to_lowercase(),
+            name,
             the_type: Type::from(t),
             nullable: !is_non_null,
             part_of_pk: row.get(5).unwrap(),
@@ -254,12 +257,12 @@ fn query_fk(connection: &Connection, table_name: &str) -> Vec<ForeignKey> {
             table,
             from_column: vec![own_columns
                 .into_iter()
-                .find(|c| c.name == to_column.to_lowercase())
+                .find(|c| c.name.to_lowercase() == to_column.to_lowercase())
                 .unwrap()],
             to_column: vec![other_table_columns
                 .clone()
                 .into_iter()
-                .find(|c| c.name == from_column.to_lowercase())
+                .find(|c| c.name.to_lowercase() == from_column.to_lowercase())
                 .unwrap()],
         };
 
