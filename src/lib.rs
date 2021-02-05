@@ -170,15 +170,17 @@ pub enum Type {
 
 impl From<String> for Type {
     fn from(s: String) -> Self {
-        if &s == "TEXT" {
+        let lower_cased = s.to_lowercase();
+
+        if &lower_cased == "text" {
             Type::Text
-        } else if &s == "INTEGER" {
+        } else if &lower_cased == "integer" {
             Type::Integer
-        } else if &s == "STRING" {
+        } else if &lower_cased == "string" {
             Type::String
-        } else if &s == "REAL" {
+        } else if &lower_cased == "real" {
             Type::Real
-        } else if &s == "BLOB" {
+        } else if &lower_cased == "blob" {
             Type::Blob
         } else {
             panic!("Unknown type: {}", s)
