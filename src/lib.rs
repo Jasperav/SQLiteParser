@@ -174,7 +174,7 @@ impl From<String> for Type {
 
         if &lower_cased == "text" {
             Type::Text
-        } else if &lower_cased == "integer" {
+        } else if &lower_cased == "integer" || &lower_cased == "int" {
             Type::Integer
         } else if &lower_cased == "string" {
             Type::String
