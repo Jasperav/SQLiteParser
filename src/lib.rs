@@ -261,14 +261,16 @@ fn query_fk(connection: &Connection, table_name: &str) -> Vec<ForeignKey> {
                 .clone()
                 .into_iter()
                 .find(|c| c.name.to_lowercase() == from_column.to_lowercase())
-                .expect(&format!(
-                    "Expected to find {} in {:#?}",
-                    from_column.to_lowercase(),
-                    own_columns
-                        .iter()
-                        .map(|c| c.name.to_lowercase())
-                        .collect::<Vec<_>>()
-                ))],
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Expected to find {} in {:#?}",
+                        from_column.to_lowercase(),
+                        own_columns
+                            .iter()
+                            .map(|c| c.name.to_lowercase())
+                            .collect::<Vec<_>>()
+                    )
+                })],
             to_column: vec![other_table_columns
                 .clone()
                 .into_iter()
