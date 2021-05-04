@@ -416,18 +416,18 @@ mod tests {
                         id: 0,
                         table: "user".to_string(),
                         from_column: vec![Column {
-                            id: 0,
-                            name: "user_id".to_string(),
-                            the_type: Integer,
-                            nullable: false,
-                            part_of_pk: true,
-                        }],
-                        to_column: vec![Column {
                             id: 1,
                             name: "parent_id".to_string(),
                             the_type: Integer,
                             nullable: true,
                             part_of_pk: false,
+                        }],
+                        to_column: vec![Column {
+                            id: 0,
+                            name: "user_id".to_string(),
+                            the_type: Integer,
+                            nullable: false,
+                            part_of_pk: true,
                         }],
                     }],
                 };
