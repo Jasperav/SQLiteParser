@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use rusqlite::{Connection, ToSql, NO_PARAMS};
+use rusqlite::{Connection, ToSql};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct Metadata {
     pub tables: HashMap<String, Table>,
 }
@@ -100,17 +100,14 @@ pub fn parse_no_parser<P: AsRef<Path>>(path: P) -> Metadata {
 /// Implement this trait to parse your own types
 pub trait Parser {
     fn query_all_tables(&self) -> (&'static str, &'static [&'static dyn ToSql]) {
-        (
-            "SELECT name FROM sqlite_master WHERE type='table';",
-            NO_PARAMS,
-        )
+        ("SELECT name FROM sqlite_master WHERE type='table';", &[])
     }
 
     fn process_tables(&mut self, tables: Metadata);
 }
 
 /// Represents a table in SQLite
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct Table {
     /// The table name
     pub table_name: String,
@@ -129,7 +126,7 @@ impl Table {
 }
 
 /// Represents a column in SQLite
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct Column {
     /// The id of the column (starts with 0 and is incremented for each column)
     pub id: i32,
@@ -144,7 +141,7 @@ pub struct Column {
 }
 
 /// Represents a foreign key in SQLite
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct ForeignKey {
     /// The id of the foreign key
     /// Starts with 0 and is incremented for each unique foreign key
@@ -159,7 +156,7 @@ pub struct ForeignKey {
 }
 
 /// Represents a type in SQLite
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, Eq)]
 pub enum Type {
     Text,
     Integer,
@@ -199,9 +196,9 @@ fn query_tables(query: &str, params: &[&dyn ToSql], connection: &Connection) -> 
         let table_name: String = row.get(0).unwrap();
 
         // Get the columns
-        let columns = query_columns(&connection, &table_name);
+        let columns = query_columns(connection, &table_name);
         // Get the foreign keys
-        let foreign_keys = query_fk(&connection, &table_name);
+        let foreign_keys = query_fk(connection, &table_name);
 
         tables.push(Table {
             table_name,
@@ -296,7 +293,7 @@ fn query_fk(connection: &Connection, table_name: &str) -> Vec<ForeignKey> {
 mod tests {
     use std::collections::HashMap;
 
-    use rusqlite::{Connection, NO_PARAMS};
+    use rusqlite::Connection;
 
     use crate::Type::{Blob, Integer, Real, Text};
     use crate::{parse, Column, ForeignKey, Metadata, Parser, Table, Type};
@@ -318,7 +315,7 @@ mod tests {
             parent_id INTEGER,
             FOREIGN KEY(parent_id) REFERENCES user(user_id)
         );",
-                NO_PARAMS,
+                [],
             )
             .unwrap();
 
@@ -331,7 +328,7 @@ mod tests {
             FOREIGN KEY(user_id) REFERENCES user(user_id),
             PRIMARY KEY (contact_id, first_name)
         );",
-                NO_PARAMS,
+                [],
             )
             .unwrap();
 
@@ -347,7 +344,7 @@ mod tests {
             FOREIGN KEY(user_id) REFERENCES user(user_id),
             PRIMARY KEY (contact_id, first_name)
         );",
-                NO_PARAMS,
+                [],
             )
             .unwrap();
 
