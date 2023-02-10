@@ -11,8 +11,7 @@ pub struct Metadata {
 impl Metadata {
     pub fn table(&self, table_name: &str) -> Option<&Table> {
         self.tables
-            .iter()
-            .map(|(_, table)| table)
+            .values()
             .find(|table| table.table_name == table_name)
     }
 }
@@ -115,6 +114,14 @@ pub struct Table {
     pub columns: Vec<Column>,
     /// The foreign keys of the table
     pub foreign_keys: Vec<ForeignKey>,
+    pub indexes: Vec<Index>,
+}
+
+/// Represents an index in SQLite
+#[derive(Debug, PartialEq, Clone, Eq)]
+pub struct Index {
+    pub name: String,
+    pub columns: Vec<Column>,
 }
 
 impl Table {
@@ -199,11 +206,13 @@ fn query_tables(query: &str, params: &[&dyn ToSql], connection: &Connection) -> 
         let columns = query_columns(connection, &table_name);
         // Get the foreign keys
         let foreign_keys = query_fk(connection, &table_name);
+        let indexes = query_indexes(connection, &table_name, &columns);
 
         tables.push(Table {
             table_name,
             columns,
             foreign_keys,
+            indexes,
         });
     }
 
@@ -216,7 +225,7 @@ fn query_columns(connection: &Connection, table_name: &str) -> Vec<Column> {
     let mut stmt = connection
         .prepare("SELECT * FROM pragma_table_info(?);")
         .unwrap();
-    let mut rows = stmt.query(&[&table_name]).unwrap();
+    let mut rows = stmt.query([&table_name]).unwrap();
 
     while let Some(row) = rows.next().unwrap() {
         // Parse the type first
@@ -236,13 +245,58 @@ fn query_columns(connection: &Connection, table_name: &str) -> Vec<Column> {
     columns
 }
 
+/// Queries the indexes from the table name
+fn query_indexes(connection: &Connection, table_name: &str, columns: &[Column]) -> Vec<Index> {
+    let mut indexes = vec![];
+    let mut stmt = connection
+        .prepare(
+            "SELECT
+  name, sql
+FROM sqlite_master
+WHERE type = 'index' AND tbl_name = ? AND sql is not null;",
+        )
+        .unwrap();
+    let mut rows = stmt.query([&table_name]).unwrap();
+
+    while let Some(row) = rows.next().unwrap() {
+        let name: String = row.get(0).unwrap();
+        let sql: String = row.get(1).unwrap();
+        let columns_used = sql
+            .split('(')
+            .collect::<Vec<_>>()
+            .get(1)
+            .unwrap()
+            .split(')')
+            .collect::<Vec<_>>()
+            .first()
+            .unwrap()
+            .split(", ");
+
+        indexes.push(Index {
+            name,
+            columns: columns_used
+                .into_iter()
+                .map(|c| {
+                    columns
+                        .iter()
+                        .find(|co| c.to_lowercase() == co.name.to_lowercase())
+                        .unwrap()
+                        .clone()
+                })
+                .collect(),
+        });
+    }
+
+    indexes
+}
+
 /// Queries the foreign keys from the table name
 fn query_fk(connection: &Connection, table_name: &str) -> Vec<ForeignKey> {
     let mut foreign_keys: Vec<ForeignKey> = vec![];
     let mut stmt = connection
         .prepare("SELECT * FROM pragma_foreign_key_list(?);")
         .unwrap();
-    let mut rows = stmt.query(&[&table_name]).unwrap();
+    let mut rows = stmt.query([&table_name]).unwrap();
 
     while let Some(row) = rows.next().unwrap() {
         let table: String = row.get(2).unwrap();
@@ -296,7 +350,7 @@ mod tests {
     use rusqlite::Connection;
 
     use crate::Type::{Blob, Integer, Real, Text};
-    use crate::{parse, Column, ForeignKey, Metadata, Parser, Table, Type};
+    use crate::{parse, Column, ForeignKey, Index, Metadata, Parser, Table, Type};
 
     #[test]
     fn test_parse() {
@@ -328,6 +382,13 @@ mod tests {
             FOREIGN KEY(user_id) REFERENCES user(user_id),
             PRIMARY KEY (contact_id, first_name)
         );",
+                [],
+            )
+            .unwrap();
+
+        connect
+            .execute(
+                "CREATE INDEX contacts_user_id on contacts(user_id, first_name);",
                 [],
             )
             .unwrap();
@@ -398,6 +459,25 @@ mod tests {
                         }],
                         to_column: vec![user_id_column.clone()],
                     }],
+                    indexes: vec![Index {
+                        name: "contacts_user_id".to_string(),
+                        columns: vec![
+                            Column {
+                                id: 2,
+                                name: "user_id".to_string(),
+                                the_type: Integer,
+                                nullable: true,
+                                part_of_pk: false,
+                            },
+                            Column {
+                                id: 1,
+                                name: "first_name".to_string(),
+                                the_type: Text,
+                                nullable: false,
+                                part_of_pk: true,
+                            },
+                        ],
+                    }],
                 };
                 let user = Table {
                     table_name: "user".to_string(),
@@ -429,6 +509,7 @@ mod tests {
                             part_of_pk: true,
                         }],
                     }],
+                    indexes: vec![],
                 };
 
                 let book = Table {
@@ -526,6 +607,7 @@ mod tests {
                             ],
                         },
                     ],
+                    indexes: vec![],
                 };
 
                 let map: HashMap<String, Table> = vec![contacts, user, book]
