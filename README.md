@@ -1,7 +1,7 @@
 # SQLite parser
 
 [![Latest Version](https://img.shields.io/crates/v/sqlite_parser.svg)](https://crates.io/crates/sqlite_parser)
-[![Build Status](https://img.shields.io/github/workflow/status/jasperav/SQLiteParser/Rust/master)](https://github.com/jasperav/SQLiteParser/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/jasperav/SQLiteParser/rust.yml?branch=master)](https://github.com/jasperav/SQLiteParser/actions)
 
 ## Usage
 This crate will make it easy to parse a SQLite database. This can be useful for code generation.
