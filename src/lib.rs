@@ -160,6 +160,30 @@ pub struct ForeignKey {
     pub from_column: Vec<Column>,
     /// The columns it refers to (referring to table)
     pub to_column: Vec<Column>,
+    pub on_update: OnUpdateAndDelete,
+    pub on_delete: OnUpdateAndDelete,
+}
+
+#[derive(Debug, PartialEq, Copy, Clone, Eq)]
+pub enum OnUpdateAndDelete {
+    NoAction,
+    Restrict,
+    SetNull,
+    SetDefault,
+    Cascade,
+}
+
+impl OnUpdateAndDelete {
+    fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "no action" => Self::NoAction,
+            "restrict" => Self::Restrict,
+            "set null" => Self::SetNull,
+            "set default" => Self::SetDefault,
+            "cascade" => Self::Cascade,
+            _ => panic!("{}", "Unknown OnUpdateAndDelete: {s}"),
+        }
+    }
 }
 
 /// Represents a type in SQLite
@@ -303,6 +327,8 @@ fn query_fk(connection: &Connection, table_name: &str) -> Vec<ForeignKey> {
         let other_table_columns = query_columns(connection, &table);
         let from_column: String = row.get(3).unwrap();
         let to_column: String = row.get(4).unwrap();
+        let on_update: String = row.get(5).unwrap();
+        let on_delete: String = row.get(6).unwrap();
         let own_columns = query_columns(connection, table_name);
 
         let mut foreign_key = ForeignKey {
@@ -327,6 +353,8 @@ fn query_fk(connection: &Connection, table_name: &str) -> Vec<ForeignKey> {
                 .into_iter()
                 .find(|c| c.name.to_lowercase() == to_column.to_lowercase())
                 .unwrap()],
+            on_update: OnUpdateAndDelete::from_str(&on_update),
+            on_delete: OnUpdateAndDelete::from_str(&on_delete),
         };
 
         if let Some(fk) = foreign_keys
@@ -350,7 +378,9 @@ mod tests {
     use rusqlite::Connection;
 
     use crate::Type::{Blob, Integer, Real, Text};
-    use crate::{parse, Column, ForeignKey, Index, Metadata, Parser, Table, Type};
+    use crate::{
+        parse, Column, ForeignKey, Index, Metadata, OnUpdateAndDelete, Parser, Table, Type,
+    };
 
     #[test]
     fn test_parse() {
@@ -458,6 +488,8 @@ mod tests {
                             part_of_pk: false,
                         }],
                         to_column: vec![user_id_column.clone()],
+                        on_update: OnUpdateAndDelete::NoAction,
+                        on_delete: OnUpdateAndDelete::NoAction,
                     }],
                     indexes: vec![Index {
                         name: "contacts_user_id".to_string(),
@@ -508,6 +540,8 @@ mod tests {
                             nullable: false,
                             part_of_pk: true,
                         }],
+                        on_update: OnUpdateAndDelete::NoAction,
+                        on_delete: OnUpdateAndDelete::NoAction,
                     }],
                     indexes: vec![],
                 };
@@ -569,6 +603,8 @@ mod tests {
                                 nullable: false,
                                 part_of_pk: true,
                             }],
+                            on_update: OnUpdateAndDelete::NoAction,
+                            on_delete: OnUpdateAndDelete::NoAction,
                         },
                         ForeignKey {
                             id: 1,
@@ -605,6 +641,8 @@ mod tests {
                                     part_of_pk: true,
                                 },
                             ],
+                            on_update: OnUpdateAndDelete::NoAction,
+                            on_delete: OnUpdateAndDelete::NoAction,
                         },
                     ],
                     indexes: vec![],
