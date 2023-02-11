@@ -311,6 +311,19 @@ WHERE type = 'index' AND tbl_name = ? AND sql is not null;",
         });
     }
 
+    // Check for duplicates
+    for (i, index) in indexes.iter().enumerate() {
+        for (i_inner, index_inner) in indexes.iter().enumerate() {
+            if i == i_inner {
+                assert_eq!(index, index_inner);
+
+                continue;
+            }
+
+            assert_ne!(index.columns, index_inner.columns, "Duplicate index: {:#?}", index_inner.columns);
+        }
+    }
+
     indexes
 }
 
