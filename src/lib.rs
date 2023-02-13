@@ -122,6 +122,7 @@ pub struct Table {
 pub struct Index {
     pub name: String,
     pub columns: Vec<Column>,
+    pub unique: bool,
 }
 
 impl Table {
@@ -230,7 +231,7 @@ fn query_tables(query: &str, params: &[&dyn ToSql], connection: &Connection) -> 
         let columns = query_columns(connection, &table_name);
         // Get the foreign keys
         let foreign_keys = query_fk(connection, &table_name);
-        let indexes = query_indexes(connection, &table_name, &columns);
+        let indexes = query_indexes(connection, &table_name, &columns, &foreign_keys);
 
         tables.push(Table {
             table_name,
@@ -270,7 +271,12 @@ fn query_columns(connection: &Connection, table_name: &str) -> Vec<Column> {
 }
 
 /// Queries the indexes from the table name
-fn query_indexes(connection: &Connection, table_name: &str, columns: &[Column]) -> Vec<Index> {
+fn query_indexes(
+    connection: &Connection,
+    table_name: &str,
+    columns: &[Column],
+    foreign_keys: &[ForeignKey],
+) -> Vec<Index> {
     let mut indexes = vec![];
     let mut stmt = connection
         .prepare(
@@ -308,7 +314,58 @@ WHERE type = 'index' AND tbl_name = ? AND sql is not null;",
                         .clone()
                 })
                 .collect(),
+            unique: false,
         });
+    }
+
+    let mut stmt = connection
+        .prepare(
+            // https://stackoverflow.com/a/53629321/7715250
+            &format!(
+                "SELECT DISTINCT ii.name as column_name
+FROM sqlite_master AS m,
+     pragma_index_list(m.name) AS il,
+     pragma_index_info(il.name) AS ii
+WHERE m.type='table' AND il.[unique] = 1 and m.name = '{table_name}';"
+            ),
+        )
+        .unwrap();
+    let mut rows = stmt.query([]).unwrap();
+
+    while let Some(row) = rows.next().unwrap() {
+        let name: String = row.get(0).unwrap();
+        let mut index_column = None;
+
+        for column in columns {
+            if column.name == name {
+                if !column.part_of_pk {
+                    index_column = Some(column.clone());
+                }
+
+                break;
+            }
+        }
+
+        if index_column.is_none() {
+            // PK's always have unique indexes, skip these
+            continue;
+        }
+
+        let index_column = index_column.unwrap();
+        let contains = foreign_keys
+            .iter()
+            .find(|f| f.from_column.iter().any(|f| f.name == index_column.name));
+
+        if contains.is_some() {
+            // Foreign keys always have unique constraints, ignore
+            continue;
+        }
+
+        indexes.push(Index {
+            name,
+            columns: vec![index_column],
+            unique: true,
+        })
     }
 
     // Check for duplicates
@@ -320,7 +377,11 @@ WHERE type = 'index' AND tbl_name = ? AND sql is not null;",
                 continue;
             }
 
-            assert_ne!(index.columns, index_inner.columns, "Duplicate index: {:#?}", index_inner.columns);
+            assert_ne!(
+                index.columns, index_inner.columns,
+                "Duplicate index: {:#?}",
+                index_inner.columns
+            );
         }
     }
 
@@ -441,7 +502,7 @@ mod tests {
                 "CREATE TABLE book (
             contact_id INTEGER NOT NULL,
             first_name TEXT NOT NULL,
-            real REAL NOT NULL,
+            real REAL UNIQUE NOT NULL,
             blob BLOB NOT NULL,
             user_id INTEGER,
             FOREIGN KEY(contact_id, first_name) REFERENCES contacts(contact_id, first_name),
@@ -522,6 +583,7 @@ mod tests {
                                 part_of_pk: true,
                             },
                         ],
+                        unique: false,
                     }],
                 };
                 let user = Table {
@@ -658,7 +720,17 @@ mod tests {
                             on_delete: OnUpdateAndDelete::NoAction,
                         },
                     ],
-                    indexes: vec![],
+                    indexes: vec![Index {
+                        name: "real".to_string(),
+                        columns: vec![Column {
+                            id: 2,
+                            name: "real".to_string(),
+                            the_type: Real,
+                            nullable: false,
+                            part_of_pk: false,
+                        }],
+                        unique: true,
+                    }],
                 };
 
                 let map: HashMap<String, Table> = vec![contacts, user, book]
