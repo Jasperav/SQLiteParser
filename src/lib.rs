@@ -300,17 +300,23 @@ WHERE type = 'index' AND tbl_name = ? AND sql is not null;",
             .collect::<Vec<_>>()
             .first()
             .unwrap()
-            .split(", ");
+            .split(", ")
+            .map(|c| {
+                c.to_string()
+                    .strip_suffix(" desc")
+                    .map(|c| c.to_string())
+                    .unwrap_or(c.to_string())
+            });
 
         indexes.push(Index {
-            name,
+            name: name.clone(),
             columns: columns_used
-                .into_iter()
+                .clone()
                 .map(|c| {
                     columns
                         .iter()
                         .find(|co| c.to_lowercase() == co.name.to_lowercase())
-                        .unwrap()
+                        .unwrap_or_else(|| panic!("Could not find index with name {name} in columns_used: {:#?} columns: {:#?}", columns_used, columns))
                         .clone()
                 })
                 .collect(),
@@ -499,6 +505,13 @@ mod tests {
 
         connect
             .execute(
+                "CREATE INDEX contact_id_reversed on contacts(contact_id desc);",
+                [],
+            )
+            .unwrap();
+
+        connect
+            .execute(
                 "CREATE TABLE book (
             contact_id INTEGER NOT NULL,
             first_name TEXT NOT NULL,
@@ -565,26 +578,39 @@ mod tests {
                         on_update: OnUpdateAndDelete::NoAction,
                         on_delete: OnUpdateAndDelete::NoAction,
                     }],
-                    indexes: vec![Index {
-                        name: "contacts_user_id".to_string(),
-                        columns: vec![
-                            Column {
-                                id: 2,
-                                name: "user_id".to_string(),
+                    indexes: vec![
+                        Index {
+                            name: "contacts_user_id".to_string(),
+                            columns: vec![
+                                Column {
+                                    id: 2,
+                                    name: "user_id".to_string(),
+                                    the_type: Integer,
+                                    nullable: true,
+                                    part_of_pk: false,
+                                },
+                                Column {
+                                    id: 1,
+                                    name: "first_name".to_string(),
+                                    the_type: Text,
+                                    nullable: false,
+                                    part_of_pk: true,
+                                },
+                            ],
+                            unique: false,
+                        },
+                        Index {
+                            name: "contact_id_reversed".to_string(),
+                            columns: vec![Column {
+                                id: 0,
+                                name: "contact_id".to_string(),
                                 the_type: Integer,
-                                nullable: true,
-                                part_of_pk: false,
-                            },
-                            Column {
-                                id: 1,
-                                name: "first_name".to_string(),
-                                the_type: Text,
                                 nullable: false,
                                 part_of_pk: true,
-                            },
-                        ],
-                        unique: false,
-                    }],
+                            }],
+                            unique: false,
+                        },
+                    ],
                 };
                 let user = Table {
                     table_name: "user".to_string(),
