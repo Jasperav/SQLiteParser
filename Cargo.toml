@@ -1,6 +1,6 @@
 [package]
 name = "sqlite_parser"
-version = "0.1.18"
+version = "0.1.19"
 authors = ["Jasper <Jasperav@hotmail.com>"]
 edition = "2021"
 description = "Parse SQLite databases"
